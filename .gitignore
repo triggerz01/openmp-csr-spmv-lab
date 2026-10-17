@@ -1,0 +1,11 @@
+# Generated programs and temporary files
+/csr_spmv_lab
+/csr_spmv_lab.exe
+/tmp/
+*.o
+.DS_Store
+
+# Course handouts and separate learning notes stay local
+/实验要求.pdf
+/export_1791953815129.docx
+/csr_spmv_lab_annotated.cpp
