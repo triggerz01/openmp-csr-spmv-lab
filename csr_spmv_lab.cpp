@@ -35,6 +35,7 @@ struct Options {
     int threads = 8;
     int repeats = 10;
     unsigned seed = 20260926u;
+    std::string only = "all";
 };
 
 static void usage(const char* program) {
@@ -47,7 +48,8 @@ static void usage(const char* program) {
         << "  --long-nnz N      nnz per long row, default 20000\n"
         << "  --threads N       std::thread/OpenMP threads, default 8\n"
         << "  --repeats N       timed repetitions, default 10\n"
-        << "  --seed N          fixed random seed, default 20260926\n";
+        << "  --seed N          fixed random seed, default 20260926\n"
+        << "  --only NAME       run all, serial, thread, omp1, or omp2 (default all)\n";
 }
 
 static int read_int_arg(int argc, char** argv, int& i, const std::string& name) {
@@ -80,6 +82,11 @@ static Options parse_options(int argc, char** argv) {
             options.repeats = read_int_arg(argc, argv, i, arg);
         } else if (arg == "--seed") {
             options.seed = static_cast<unsigned>(read_int_arg(argc, argv, i, arg));
+        } else if (arg == "--only") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("missing value for --only");
+            }
+            options.only = argv[++i];
         } else {
             throw std::invalid_argument("unknown option: " + arg);
         }
@@ -90,6 +97,11 @@ static Options parse_options(int argc, char** argv) {
         options.long_nnz < 0 || options.long_nnz > options.cols ||
         options.threads <= 0 || options.repeats <= 0) {
         throw std::invalid_argument("invalid option value");
+    }
+    if (options.only != "all" && options.only != "serial" &&
+        options.only != "thread" && options.only != "omp1" &&
+        options.only != "omp2") {
+        throw std::invalid_argument("invalid --only value");
     }
     return options;
 }
@@ -259,31 +271,52 @@ int main(int argc, char** argv) {
         std::cout << "OpenMP disabled: compile with -fopenmp to enable it.\n";
 #endif
 
-        const double serial_ms = benchmark_ms(
-            [&](std::vector<double>& y) { spmv_serial(matrix, x, y); },
-            reference, output, options.repeats);
-        const double thread_ms = benchmark_ms(
-            [&](std::vector<double>& y) {
-                spmv_std_thread(matrix, x, y, options.threads);
-            },
-            reference, output, options.repeats);
-        const double openmp_1_ms = benchmark_ms(
-            [&](std::vector<double>& y) {
-                spmv_omp_student_1(matrix, x, y);
-            },
-            reference, output, options.repeats);
-        const double openmp_2_ms = benchmark_ms(
-            [&](std::vector<double>& y) {
-                spmv_omp_student_2(matrix, x, y);
-            },
-            reference, output, options.repeats);
+        const bool run_all = options.only == "all";
+        double serial_ms = 0.0;
+        double thread_ms = 0.0;
+        double openmp_1_ms = 0.0;
+        double openmp_2_ms = 0.0;
+        if (run_all || options.only == "serial") {
+            serial_ms = benchmark_ms(
+                [&](std::vector<double>& y) { spmv_serial(matrix, x, y); },
+                reference, output, options.repeats);
+        }
+        if (run_all || options.only == "thread") {
+            thread_ms = benchmark_ms(
+                [&](std::vector<double>& y) {
+                    spmv_std_thread(matrix, x, y, options.threads);
+                },
+                reference, output, options.repeats);
+        }
+        if (run_all || options.only == "omp1") {
+            openmp_1_ms = benchmark_ms(
+                [&](std::vector<double>& y) {
+                    spmv_omp_student_1(matrix, x, y);
+                },
+                reference, output, options.repeats);
+        }
+        if (run_all || options.only == "omp2") {
+            openmp_2_ms = benchmark_ms(
+                [&](std::vector<double>& y) {
+                    spmv_omp_student_2(matrix, x, y);
+                },
+                reference, output, options.repeats);
+        }
 
-        std::cout << std::fixed << std::setprecision(3)
-                  << "serial                  " << serial_ms << " ms\n"
-                  << "std::thread             " << thread_ms << " ms\n"
-                  << "OpenMP 1 (TODO)   " << openmp_1_ms << " ms\n"
-                  << "OpenMP 2 (TODO)  " << openmp_2_ms << " ms\n"
-                  << "All correctness checks passed.\n";
+        std::cout << std::fixed << std::setprecision(3);
+        if (run_all || options.only == "serial") {
+            std::cout << "serial                  " << serial_ms << " ms\n";
+        }
+        if (run_all || options.only == "thread") {
+            std::cout << "std::thread             " << thread_ms << " ms\n";
+        }
+        if (run_all || options.only == "omp1") {
+            std::cout << "OpenMP 1 (TODO)   " << openmp_1_ms << " ms\n";
+        }
+        if (run_all || options.only == "omp2") {
+            std::cout << "OpenMP 2 (TODO)  " << openmp_2_ms << " ms\n";
+        }
+        std::cout << "All correctness checks passed.\n";
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';
         usage(argv[0]);
