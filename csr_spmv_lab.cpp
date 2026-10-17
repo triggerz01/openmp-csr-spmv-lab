@@ -189,7 +189,15 @@ static void spmv_omp_student_2(const CsrMatrix& matrix,
                                       const std::vector<double>& x,
                                       std::vector<double>& y) {
     // This fallback keeps the starter program correct before students edit it.
-    spmv_serial(matrix, x, y);
+    #pragma omp parallel for schedule(dynamic,32)
+    for(int row=0;row<matrix.rows;++row)
+    {
+        double sum = 0.0;
+        for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
+            sum += matrix.values[p] * x[matrix.col_idx[p]];
+        }
+        y[row] = sum;
+    }
 }
 
 static bool check_result(const std::vector<double>& expected,
