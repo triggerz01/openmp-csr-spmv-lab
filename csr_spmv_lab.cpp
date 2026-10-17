@@ -168,12 +168,14 @@ static void spmv_std_thread(const CsrMatrix& matrix, const std::vector<double>& 
     }
 }
 
-// Strategy 1: parallelize independent CSR rows with OpenMP.
+// TODO 1: replace the fallback with an OpenMP parallel implementation.
 static void spmv_omp_student_1(const CsrMatrix& matrix,
                                      const std::vector<double>& x,
                                      std::vector<double>& y) {
-    #pragma omp parallel for
-    for (int row = 0; row < matrix.rows; ++row) {
+    // This fallback keeps the starter program correct before students edit it.
+    #pragma omp parallel for schedule(static)
+    for(int row=0;row<matrix.rows;++row)
+    {
         double sum = 0.0;
         for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
             sum += matrix.values[p] * x[matrix.col_idx[p]];
